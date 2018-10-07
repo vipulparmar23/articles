@@ -7,8 +7,6 @@ from passlib.hash import sha256_crypt
 from pymysql import IntegrityError
 
 mysql = MySQL()
-# cursor = mysql.get_db.cursor()
-# cursor = mysql.connect().cursor()
 
 app = Flask(__name__)
 
@@ -24,7 +22,6 @@ app.config['MYSQL_DATABASE_PORT'] = 3306
 mysql.init_app(app)
 
 Articles = Articles()
-
 
 @app.route('/')
 def index():
@@ -78,17 +75,56 @@ def register():
         except IntegrityError:
             flash('The email ID already exists. Try another.', 'danger')
 
-        # commit to DB
-        # cursor.connection.commit()
-
-        # close connection
-        # cursor.close()
-
-        # flash('You are now registered and can log in', 'success')
-
         redirect(url_for('index'))
-
     return render_template('register.html', form=form)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        
+        # get form fields
+        username = request.form['username']
+        password_user = request.form['password']
+
+        app.logger.info(password_user)
+
+        # create cursor
+        cursor = mysql.connect().cursor()
+
+        # get user by username
+        result = cursor.execute('SELECT * FROM users WHERE username = %s', [username])
+
+        if(result>0):
+            # get stored hash
+            password = cursor.fetchone()
+            app.logger.info(password[3])
+
+            # compare passwords
+            if sha256_crypt.verify(password_user, password[3]):
+                # passed. 
+                session['logged_in'] = True
+                session['username'] = username
+
+                flash('You are now logged in', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                # app.logger.info('PASSWORD NO MATCH')
+                error = 'Invalid login'
+                return render_template('login.html', error=error)
+        else:
+            error = 'Username not found'
+            return render_template('login.html', error=error)
+
+    return render_template('login.html')
+
+@app.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html')
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('You are now logged out', 'success')
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.secret_key = "secret123"
