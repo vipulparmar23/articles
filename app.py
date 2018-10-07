@@ -5,6 +5,7 @@ from flaskext.mysql import MySQL
 from wtforms import Form, StringField, TextAreaField, PasswordField, validators
 from passlib.hash import sha256_crypt
 from pymysql import IntegrityError
+from functools import wraps
 
 mysql = MySQL()
 
@@ -53,6 +54,7 @@ class RegisterForm(Form):
     confirm = PasswordField('Confirm Password', render_kw={
                             "placeholder": "Confirm Password"})
 
+# Register User
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegisterForm(request.form)
@@ -75,9 +77,10 @@ def register():
         except IntegrityError:
             flash('The email ID already exists. Try another.', 'danger')
 
-        redirect(url_for('index'))
+        redirect(url_for('login'))
     return render_template('register.html', form=form)
 
+# Login user
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -117,9 +120,24 @@ def login():
 
     return render_template('login.html')
 
+# Check if user is logged in
+def is_logged_in(f):
+    @wraps(f)
+    def wrap(*args, **kwargs):
+        if 'logged_in' in session:
+            return f(*args, **kwargs)
+        else:
+            flash('Unauthorized, please log in', 'danger')
+            return redirect(url_for('login'))
+    return wrap
+
+# To dashboard
 @app.route('/dashboard')
+@is_logged_in
 def dashboard():
     return render_template('dashboard.html')
+
+# Logging user out
 @app.route('/logout')
 def logout():
     session.clear()
