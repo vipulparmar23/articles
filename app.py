@@ -1,8 +1,10 @@
+#import sys
 from flask import Flask, render_template, flash, redirect, url_for, session, logging, request
 from data import Articles
 from flaskext.mysql import MySQL
 from wtforms import Form, StringField, TextAreaField, PasswordField, validators
 from passlib.hash import sha256_crypt
+from pymysql import IntegrityError
 
 mysql = MySQL()
 # cursor = mysql.get_db.cursor()
@@ -67,16 +69,22 @@ def register():
         cursor = mysql.connect().cursor()
 
         # Execute the query
-        cursor.execute("INSERT INTO users(name, username, password, email) VALUES (%s, %s, %s, %s)",
+        try:
+            cursor.execute("INSERT INTO users(name, username, password, email) VALUES (%s, %s, %s, %s)",
                        (name, username, password, email))
+            cursor.connection.commit()
+            cursor.close()
+            flash('You are now registered and can log in', 'success')
+        except IntegrityError:
+            flash('The email ID already exists. Try another.', 'danger')
 
         # commit to DB
-        cursor.connection.commit()
+        # cursor.connection.commit()
 
         # close connection
-        cursor.close()
+        # cursor.close()
 
-        flash('You are now registered and can log in', 'success')
+        # flash('You are now registered and can log in', 'success')
 
         redirect(url_for('index'))
 
