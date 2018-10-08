@@ -24,21 +24,26 @@ mysql.init_app(app)
 
 Articles = Articles()
 
+
 @app.route('/')
 def index():
     return render_template('home.html')
+
 
 @app.route('/about')
 def about():
     return render_template('about.html')
 
+
 @app.route('/articles')
 def articles():
     return render_template('articles.html', articles=Articles)
 
+
 @app.route('/articles/article/<string:id>')
 def article(id):
     return render_template('article.html', id=id)
+
 
 class RegisterForm(Form):
     name = StringField('Name', [validators.length(
@@ -55,6 +60,8 @@ class RegisterForm(Form):
                             "placeholder": "Confirm Password"})
 
 # Register User
+
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     form = RegisterForm(request.form)
@@ -70,7 +77,7 @@ def register():
         # Execute the query
         try:
             cursor.execute("INSERT INTO users(name, username, password, email) VALUES (%s, %s, %s, %s)",
-                       (name, username, password, email))
+                           (name, username, password, email))
             cursor.connection.commit()
             cursor.close()
             flash('You are now registered and can log in', 'success')
@@ -81,10 +88,12 @@ def register():
     return render_template('register.html', form=form)
 
 # Login user
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        
+
         # get form fields
         username = request.form['username']
         password_user = request.form['password']
@@ -95,16 +104,17 @@ def login():
         cursor = mysql.connect().cursor()
 
         # get user by username
-        result = cursor.execute('SELECT * FROM users WHERE username = %s', [username])
+        result = cursor.execute(
+            'SELECT * FROM users WHERE username = %s', [username])
 
-        if(result>0):
+        if(result > 0):
             # get stored hash
             password = cursor.fetchone()
             app.logger.info(password[3])
 
             # compare passwords
             if sha256_crypt.verify(password_user, password[3]):
-                # passed. 
+                # passed.
                 session['logged_in'] = True
                 session['username'] = username
 
@@ -114,6 +124,7 @@ def login():
                 # app.logger.info('PASSWORD NO MATCH')
                 error = 'Invalid login'
                 return render_template('login.html', error=error)
+                cursor.close()
         else:
             error = 'Username not found'
             return render_template('login.html', error=error)
@@ -132,17 +143,56 @@ def is_logged_in(f):
     return wrap
 
 # To dashboard
+
+
 @app.route('/dashboard')
 @is_logged_in
 def dashboard():
     return render_template('dashboard.html')
 
+# article form class
+class ArticleForm(Form):
+    title = StringField('Title', [validators.length(min=1, max=200)], render_kw={"placeholder":"Title"})
+    body = TextAreaField('Body', [validators.length(min=30)], render_kw={"placeholder":"Body"})
+
+# add article
+
+
+@app.route('/add_article', methods=['GET', 'POST'])
+@is_logged_in
+def add_article():
+    form = ArticleForm(request.form)
+
+    if request.method == 'POST' and form.validate():
+        title = form.title.data
+        body = form.body.data
+
+        # create a cursor
+        cursor = mysql.connect().cursor()
+        # Execute
+        cursor.execute('INSERT INTO articles(title, body, author) VALUES(%s, %s, %s)',
+                       (title, body, session['username']))
+
+        # Commit to DB
+        cursor.connection.commit()
+        
+        # close connection
+        cursor.close()
+
+        flash('Article created', 'success')
+
+        return redirect(url_for('dashboard'))
+    return render_template('add_article.html', form=form)
+
 # Logging user out
+
+
 @app.route('/logout')
 def logout():
     session.clear()
     flash('You are now logged out', 'success')
     return redirect(url_for('login'))
+
 
 if __name__ == '__main__':
     app.secret_key = "secret123"
