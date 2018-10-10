@@ -6,8 +6,9 @@ from wtforms import Form, StringField, TextAreaField, PasswordField, validators
 from passlib.hash import sha256_crypt
 from pymysql import IntegrityError
 from functools import wraps
+from pymysql.cursors import DictCursor
 
-mysql = MySQL()
+mysql = MySQL(cursorclass=DictCursor)
 
 app = Flask(__name__)
 
@@ -17,7 +18,7 @@ app.config['MYSQL_DATABASE_USER'] = 'root'
 app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
 app.config['MYSQL_DATABASE_DB'] = 'flaskapp'
 app.config['MYSQL_DATABASE_PORT'] = 3306
-# app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
+app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 # init mysql
 mysql.init_app(app)
@@ -37,12 +38,34 @@ def about():
 
 @app.route('/articles')
 def articles():
-    return render_template('articles.html', articles=Articles)
+    #return render_template('articles.html', articles=Articles)
+
+     # create cursor
+    cursor = mysql.connect().cursor()
+
+    # get articles
+    result = cursor.execute('SELECT * FROM articles')
+    #app.logger.info(result)
+    articles = cursor.fetchall()
+   # app.logger.info(articles)
+
+    if result > 0:
+        return render_template('articles.html', articles=articles)
+    else:
+        msg = "No articles found"
+        return render_template('articles.html', msg=msg)
+
+    cursor.close()
 
 
 @app.route('/articles/article/<string:id>')
 def article(id):
-    return render_template('article.html', id=id)
+
+    cursor = mysql.connect().cursor()
+
+    result = cursor.execute('SELECT * FROM articles WHERE id=%s',[id])
+    article = cursor.fetchone()
+    return render_template('article.html', article=article)
 
 
 class RegisterForm(Form):
@@ -110,10 +133,11 @@ def login():
         if(result > 0):
             # get stored hash
             password = cursor.fetchone()
-            app.logger.info(password[3])
+
+            app.logger.info(password)
 
             # compare passwords
-            if sha256_crypt.verify(password_user, password[3]):
+            if sha256_crypt.verify(password_user, password['password']):
                 # passed.
                 session['logged_in'] = True
                 session['username'] = username
@@ -148,7 +172,22 @@ def is_logged_in(f):
 @app.route('/dashboard')
 @is_logged_in
 def dashboard():
-    return render_template('dashboard.html')
+    # create cursor
+    cursor = mysql.connect().cursor()
+
+    # get articles
+    result = cursor.execute('SELECT * FROM articles')
+    app.logger.info(result)
+    articles = cursor.fetchall()
+    app.logger.info(articles)
+
+    if result > 0:
+        return render_template('dashboard.html', articles=articles)
+    else:
+        msg = "No articles found"
+        return render_template('dashboard.html', msg=msg)
+
+    cursor.close()
 
 # article form class
 class ArticleForm(Form):
